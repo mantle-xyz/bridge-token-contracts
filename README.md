@@ -1,66 +1,35 @@
-## Foundry
-
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
-
-Foundry consists of:
-
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
-
-## Documentation
-
-https://book.getfoundry.sh/
+# Mantle Bridge Token Contracts
 
 ## Usage
-
-### Build
-
-```shell
-$ forge build
+```sh
+git submodule update --init --recursive
+forge install
 ```
 
-### Test
+### First time with Forge/Foundry?
 
-```shell
-$ forge test
+See the official Foundry installation [instructions](https://github.com/foundry-rs/foundry/blob/master/README.md#installation).
+
+Then, install the [foundry](https://github.com/foundry-rs/foundry) toolchain installer (`foundryup`) with:
+```bash
+curl -L https://foundry.paradigm.xyz | bash
 ```
 
-### Format
+Now that you've installed the `foundryup` binary,
+anytime you need to get the latest `forge` or `cast` binaries,
+you can run `foundryup`.
 
-```shell
-$ forge fmt
+So, simply execute:
+```bash
+foundryup
 ```
 
-### Gas Snapshots
+## Deployment & Verification
 
-```shell
-$ forge snapshot
-```
+Inside the [`utils/`](./utils/) directory are a few preconfigured scripts that can be used to deploy and verify contracts.
 
-### Anvil
+Scripts take inputs from the cli, using silent mode to hide any sensitive information.
 
-```shell
-$ anvil
-```
+_NOTE: These scripts are required to be _executable_ meaning they must be made executable by running `chmod +x ./utils/*`._
 
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+_NOTE: these scripts will prompt you for the contract name and deployed addresses (when verifying). Also, they use the `-i` flag on `forge` to ask for your private key for deployment. This uses silent mode which keeps your private key from being printed to the console (and visible in logs)._
