@@ -14,7 +14,6 @@ contract XAUtV2 is XAUt {
 /**
  * @title UpgradeXAUt
  * @dev XAUt Token upgrade script using the base class
- * @notice This is a simplified version - only ~20 lines of code!
  */
 contract UpgradeXAUt is L2TokenUpgradeBase {
     function getNewImplementation() internal override returns (address) {

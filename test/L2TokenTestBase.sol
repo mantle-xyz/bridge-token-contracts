@@ -2,13 +2,13 @@
 pragma solidity 0.8.20;
 
 import { Test, console } from "forge-std/Test.sol";
-import { L2UpgradableERC20 } from "../src/L2UpgradableERC20.sol";
+import { L2UpgradeableERC20 } from "../src/L2UpgradeableERC20.sol";
 import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 
 /**
  * @title L2TokenTestBase
- * @dev Base test contract for all L2UpgradableERC20 tokens
+ * @dev Base test contract for all L2UpgradeableERC20 tokens
  * @notice Inherit this and implement getTokenContract() + getTokenMetadata() + getV2Implementation()
  *
  * Example Usage:
@@ -51,7 +51,7 @@ import { TimelockController } from "@openzeppelin/contracts/governance/TimelockC
  * - test_TimelockUpgradeFlow: Tests complete upgrade flow with timelock
  */
 abstract contract L2TokenTestBase is Test {
-    L2UpgradableERC20 public token;
+    L2UpgradeableERC20 public token;
     address public implementation;
     address public proxy;
 
@@ -111,7 +111,7 @@ abstract contract L2TokenTestBase is Test {
         bytes memory initData =
             abi.encodeWithSignature("initialize(address,address,address)", bridge, remoteToken, deployer);
         proxy = address(new ERC1967Proxy(implementation, initData));
-        token = L2UpgradableERC20(proxy);
+        token = L2UpgradeableERC20(proxy);
 
         vm.stopPrank();
     }

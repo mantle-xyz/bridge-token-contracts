@@ -2,13 +2,13 @@
 pragma solidity 0.8.20;
 
 import { Script, console2 as console } from "forge-std/Script.sol";
-import { L2UpgradableERC20 } from "../../src/L2UpgradableERC20.sol";
+import { L2UpgradeableERC20 } from "../../src/L2UpgradeableERC20.sol";
 import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 
 /**
  * @title L2TokenDeployBase
- * @dev Base deployment script for all L2UpgradableERC20 tokens
+ * @dev Base deployment script for all L2UpgradeableERC20 tokens
  * @notice Inherit this and implement getTokenImplementation() + getTokenSymbol()
  *
  * Example Usage:
@@ -95,7 +95,7 @@ abstract contract L2TokenDeployBase is Script {
         address proxy = address(new ERC1967Proxy(implementation, initData));
         console.log("Proxy:          ", proxy);
 
-        L2UpgradableERC20 token = L2UpgradableERC20(proxy);
+        L2UpgradeableERC20 token = L2UpgradeableERC20(proxy);
         require(token.hasRole(DEFAULT_ADMIN_ROLE, deployer), "Deployer missing Admin Role");
 
         // Deploy Timelock (Proposer/Executor: multisig)
@@ -138,7 +138,7 @@ abstract contract L2TokenDeployBase is Script {
         console.log("Timelock:   ", timelockAddr);
         console.log("==============================================");
 
-        L2UpgradableERC20 token = L2UpgradableERC20(proxyAddr);
+        L2UpgradeableERC20 token = L2UpgradeableERC20(proxyAddr);
         require(token.hasRole(DEFAULT_ADMIN_ROLE, deployer), "Deployer is not Admin");
 
         vm.startBroadcast();

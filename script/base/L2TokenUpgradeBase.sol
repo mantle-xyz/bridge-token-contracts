@@ -2,12 +2,12 @@
 pragma solidity 0.8.20;
 
 import { Script, console2 as console } from "forge-std/Script.sol";
-import { L2UpgradableERC20 } from "../../src/L2UpgradableERC20.sol";
+import { L2UpgradeableERC20 } from "../../src/L2UpgradeableERC20.sol";
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 
 /**
  * @title L2TokenUpgradeBase
- * @dev Base upgrade script for all L2UpgradableERC20 tokens
+ * @dev Base upgrade script for all L2UpgradeableERC20 tokens
  * @notice Inherit this and implement getNewImplementation() + getTokenSymbol()
  *
  * Example Usage:
@@ -249,7 +249,7 @@ abstract contract L2TokenUpgradeBase is Script {
         vm.stopBroadcast();
 
         // Verify upgrade
-        L2UpgradableERC20 proxy = L2UpgradableERC20(proxyAddr);
+        L2UpgradeableERC20 proxy = L2UpgradeableERC20(proxyAddr);
         console.log("\n==============================================");
         console.log("Verifying upgrade...");
         console.log("Proxy name:   ", proxy.name());

@@ -7,7 +7,6 @@ import { L2TokenDeployBase } from "./base/L2TokenDeployBase.sol";
 /**
  * @title DeployXAUt
  * @dev XAUt Token deployment script using the base class
- * @notice This is a simplified version - only ~15 lines of code!
  */
 contract DeployXAUt is L2TokenDeployBase {
     function getTokenImplementation() internal override returns (address) {

@@ -12,11 +12,11 @@ import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol
 import { IOptimismMintableERC20, ILegacyMintableERC20 } from "./IOptimismMintableERC20.sol";
 
 /**
- * @title L2UpgradableERC20
- * @dev Abstract L2UpgradableERC20 Token base contract on L2 Network.
+ * @title L2UpgradeableERC20
+ * @dev Abstract L2UpgradeableERC20 Token base contract on L2 Network.
  *      Designed to be inherited by specific token implementations.
  */
-abstract contract L2UpgradableERC20 is
+abstract contract L2UpgradeableERC20 is
     Initializable,
     IOptimismMintableERC20,
     ILegacyMintableERC20,
@@ -70,7 +70,7 @@ abstract contract L2UpgradableERC20 is
      * @param _remoteToken L1 Token address
      * @param _admin Admin address for roles
      */
-    function __L2UpgradableERC20_init(
+    function __L2UpgradeableERC20_init(
         string memory _name,
         string memory _symbol,
         address _bridge,
