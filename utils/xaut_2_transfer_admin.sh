@@ -9,7 +9,7 @@ if [ -f .env ]; then
 fi
 
 forge script script/DeployXAUt.s.sol \
-  --s "step2_TransferAdmin(address,address,address)" \
+  -s "step2_TransferAdmin(address,address,address)" \
   $PROXY \
   $MULTISIG_ENGINEER \
   $TIMELOCK \
