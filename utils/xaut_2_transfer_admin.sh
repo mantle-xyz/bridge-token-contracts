@@ -9,9 +9,10 @@ if [ -f .env ]; then
 fi
 
 forge script script/DeployXAUt.s.sol \
-  -s "step2_TransferAdmin(address,address,address)" \
+  -s "step2_TransferAdmin(address,address,address,address)" \
   $PROXY \
-  $MULTISIG_ENGINEER \
+  $MULTISIG_SEC \
+  $MULTISIG_ENG \
   $TIMELOCK \
   -vvv \
   --rpc-url $RPC_URL \

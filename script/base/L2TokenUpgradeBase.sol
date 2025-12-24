@@ -30,18 +30,59 @@ import { TimelockController } from "@openzeppelin/contracts/governance/TimelockC
  * }
  * ```
  *
- * Usage:
- * Step 1: Deploy new implementation and schedule upgrade
- * forge script script/UpgradeXAUt.s.sol:UpgradeXAUt \
- *   -s "step1_ScheduleUpgrade(address,address)" \
- *   $PROXY_ADDR $TIMELOCK_ADDR \
- *   --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
+ * Modular Functions:
+ * 1. deployNewImplementation()           - Deploy new implementation contract
+ * 2. generateCalldata(...)               - Generate schedule & execute calldata (view, no private key)
+ * 3. executeSchedule(...)                - Execute schedule operation (requires PROPOSER_ROLE)
+ * 4. executeUpgrade(...)                 - Execute upgrade operation (requires EXECUTOR_ROLE)
  *
- * Step 2: Execute upgrade after timelock delay
+ * Usage Examples:
+ *
+ * A. Multisig Workflow (RECOMMENDED):
+ *
+ * Step 1: Deploy implementation
  * forge script script/UpgradeXAUt.s.sol:UpgradeXAUt \
- *   -s "step2_ExecuteUpgrade(address,address,address,bytes32)" \
- *   $PROXY_ADDR $TIMELOCK_ADDR $NEW_IMPL $SALT \
- *   --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
+ *   -s "deployNewImplementation()" \
+ *   --rpc-url $RPC_URL \
+ *   --broadcast \
+ *   --verify \
+ *   --etherscan-api-key $API_KEY
+ *
+ * Step 2: Generate calldata (no private key!)
+ * forge script script/UpgradeXAUt.s.sol:UpgradeXAUt \
+ *   -s "generateCalldata(address,address,address)" \
+ *   $PROXY $TIMELOCK $NEW_IMPL \
+ *   --rpc-url $RPC_URL
+ *
+ * Step 3: Submit schedule calldata to multisig
+ * Step 4: Wait for timelock delay
+ * Step 5: Submit execute calldata to multisig
+ *
+ * B. Direct Execution (with private key):
+ *
+ * Step 1: Deploy implementation
+ * forge script script/UpgradeXAUt.s.sol:UpgradeXAUt \
+ *   -s "deployNewImplementation()" \
+ *   --rpc-url $RPC_URL \
+ *   --broadcast
+ *
+ * Step 2: Execute schedule
+ * forge script script/UpgradeXAUt.s.sol:UpgradeXAUt \
+ *   -s "executeSchedule(address,address,address,bytes32)" \
+ *   $PROXY $TIMELOCK $NEW_IMPL $SALT \
+ *   --rpc-url $RPC_URL \
+ *   --private-key $PRIVATE_KEY \
+ *   --broadcast
+ *
+ * Step 3: Wait for timelock delay
+ *
+ * Step 4: Execute upgrade
+ * forge script script/UpgradeXAUt.s.sol:UpgradeXAUt \
+ *   -s "executeUpgrade(address,address,address,bytes32)" \
+ *   $PROXY $TIMELOCK $NEW_IMPL $SALT \
+ *   --rpc-url $RPC_URL \
+ *   --private-key $PRIVATE_KEY \
+ *   --broadcast
  */
 abstract contract L2TokenUpgradeBase is Script {
     // =============================================================
@@ -61,35 +102,68 @@ abstract contract L2TokenUpgradeBase is Script {
     function getTokenSymbol() internal view virtual returns (string memory);
 
     // =============================================================
-    //                      UPGRADE STEPS
+    //                      MODULAR FUNCTIONS
     // =============================================================
 
     /**
-     * @notice Step 1: Deploy new implementation and schedule upgrade via Timelock
-     * @param proxyAddr Token Proxy address
-     * @param timelockAddr Timelock address
-     * @return operationId The operation ID for tracking
-     * @dev This function deploys new implementation and schedules the upgrade
+     * @notice 1. Deploy new implementation contract
+     * @return newImplementation The deployed implementation address
+     * @dev Call with --broadcast to deploy
      */
-    function step1_ScheduleUpgrade(address proxyAddr, address timelockAddr) external returns (bytes32) {
+    function deployNewImplementation() external returns (address newImplementation) {
         console.log("==============================================");
-        console.log("[Upgrade Step 1] Deploy & Schedule");
-        console.log("Token:      ", getTokenSymbol());
-        console.log("Proxy:      ", proxyAddr);
-        console.log("Timelock:   ", timelockAddr);
+        console.log("Deploy New Implementation");
+        console.log("Token: ", getTokenSymbol());
         console.log("==============================================");
 
         vm.startBroadcast();
+        newImplementation = getNewImplementation();
+        vm.stopBroadcast();
 
-        // 1. Deploy new implementation
-        address newImplementation = getNewImplementation();
-        console.log("\nNew Implementation deployed at:", newImplementation);
+        console.log("\n-> New Implementation:", newImplementation);
+        console.log("==============================================");
+        console.log("\nNext Step:");
+        console.log("Call generateCalldata() with:");
+        console.log("  - Proxy address");
+        console.log("  - Timelock address");
+        console.log("  - New Implementation:", newImplementation);
+        console.log("==============================================");
 
-        // 2. Prepare upgrade call data
+        return newImplementation;
+    }
+
+    /**
+     * @notice 2. Generate schedule and execute calldata for multisig
+     * @param proxyAddr Token Proxy address
+     * @param timelockAddr Timelock address
+     * @param newImplementation New implementation address
+     * @return salt The salt for operation
+     * @return scheduleCallData Calldata for scheduling upgrade
+     * @return executeCallData Calldata for executing upgrade
+     * @dev Call WITHOUT --broadcast and --private-key (view function, no permission needed)
+     */
+    function generateCalldata(
+        address proxyAddr,
+        address timelockAddr,
+        address newImplementation
+    )
+        external
+        view
+        returns (bytes32 salt, bytes memory scheduleCallData, bytes memory executeCallData)
+    {
+        console.log("==============================================");
+        console.log("Generate Calldata for Multisig");
+        console.log("Token:              ", getTokenSymbol());
+        console.log("Proxy:              ", proxyAddr);
+        console.log("Timelock:           ", timelockAddr);
+        console.log("New Implementation: ", newImplementation);
+        console.log("==============================================");
+
+        // Prepare upgrade call data
         bytes memory upgradeCallData = abi.encodeWithSignature("upgradeToAndCall(address,bytes)", newImplementation, "");
 
-        // 3. Calculate operation ID
-        bytes32 salt = keccak256(abi.encodePacked(getTokenSymbol(), "-Upgrade-", block.timestamp));
+        // Calculate operation ID and salt
+        salt = keccak256(abi.encodePacked(getTokenSymbol(), "-Upgrade-", block.timestamp));
         bytes32 operationId = TimelockController(payable(timelockAddr)).hashOperation(
             proxyAddr, // target
             0, // value
@@ -98,16 +172,16 @@ abstract contract L2TokenUpgradeBase is Script {
             salt // salt
         );
 
-        console.log("\nOperation ID:", vm.toString(operationId));
+        console.log("Operation ID:", vm.toString(operationId));
         console.log("Salt:        ", vm.toString(salt));
 
-        // 4. Get min delay
+        // Get min delay
         uint256 minDelay = TimelockController(payable(timelockAddr)).getMinDelay();
         console.log("Min Delay:   ", minDelay, "seconds");
-        console.log("             (", minDelay / 3600, "hours )");
+        console.log("             (", minDelay / 3600, "hours)");
 
-        // 5. Prepare schedule calldata for multisig
-        bytes memory scheduleCallData = abi.encodeWithSignature(
+        // Prepare schedule calldata
+        scheduleCallData = abi.encodeWithSignature(
             "schedule(address,uint256,bytes,bytes32,bytes32,uint256)",
             proxyAddr, // target
             0, // value
@@ -117,16 +191,105 @@ abstract contract L2TokenUpgradeBase is Script {
             minDelay // delay
         );
 
-        console.log("\n==============================================");
-        console.log("MULTISIG CALLDATA FOR SCHEDULING:");
+        // Prepare execute calldata
+        executeCallData = abi.encodeWithSignature(
+            "execute(address,uint256,bytes,bytes32,bytes32)",
+            proxyAddr, // target
+            0, // value
+            upgradeCallData, // data
+            bytes32(0), // predecessor
+            salt // salt
+        );
+
+        // Print schedule calldata
         console.log("==============================================");
-        console.log("Target (Timelock):", timelockAddr);
-        console.log("Value:            ", "0");
-        console.log("Calldata:");
+        console.log("STEP 1: SCHEDULE UPGRADE");
+        console.log("==============================================");
+        console.log("Target (Timelock): ", timelockAddr);
+        console.log("Value:             ", "0");
+        console.log("Schedule Calldata:");
         console.logBytes(scheduleCallData);
         console.log("==============================================");
 
-        // 6. Schedule the upgrade
+        // Print execute calldata
+        console.log("==============================================");
+        console.log("STEP 2: EXECUTE UPGRADE (After", minDelay, "seconds)");
+        console.log("==============================================");
+        console.log("Target (Timelock): ", timelockAddr);
+        console.log("Value:             ", "0");
+        console.log("Execute Calldata:");
+        console.logBytes(executeCallData);
+        console.log("==============================================");
+
+        // Print summary
+        console.log("\n==============================================");
+        console.log("Summary");
+        console.log("==============================================");
+        console.log("New Implementation: ", newImplementation);
+        console.log("Operation ID:       ", vm.toString(operationId));
+        console.log("Salt:               ", vm.toString(salt));
+        console.log("Min Delay:          ", minDelay, "seconds");
+        console.log("                    (", minDelay / 3600, "hours)");
+        console.log("Execute after:      ", block.timestamp + minDelay);
+        console.log("==============================================");
+        console.log("\nMultisig Workflow:");
+        console.log("1. Submit 'Schedule Calldata' to multisig");
+        console.log("2. Wait", minDelay, "seconds");
+        console.log("   (", minDelay / 3600, "hours)");
+        console.log("3. Submit 'Execute Calldata' to multisig");
+        console.log("==============================================");
+
+        return (salt, scheduleCallData, executeCallData);
+    }
+
+    /**
+     * @notice 3. Execute schedule operation (requires PROPOSER_ROLE)
+     * @param proxyAddr Token Proxy address
+     * @param timelockAddr Timelock address
+     * @param newImplementation New implementation address
+     * @param salt Salt for operation (from generateCalldata or use custom)
+     * @return operationId The operation ID
+     * @dev Call with --broadcast and --private-key
+     */
+    function executeSchedule(
+        address proxyAddr,
+        address timelockAddr,
+        address newImplementation,
+        bytes32 salt
+    )
+        external
+        returns (bytes32 operationId)
+    {
+        console.log("==============================================");
+        console.log("Execute Schedule");
+        console.log("Token:              ", getTokenSymbol());
+        console.log("Proxy:              ", proxyAddr);
+        console.log("Timelock:           ", timelockAddr);
+        console.log("New Implementation: ", newImplementation);
+        console.log("Salt:               ", vm.toString(salt));
+        console.log("==============================================");
+
+        // Prepare upgrade call data
+        bytes memory upgradeCallData = abi.encodeWithSignature("upgradeToAndCall(address,bytes)", newImplementation, "");
+
+        // Calculate operation ID
+        operationId = TimelockController(payable(timelockAddr)).hashOperation(
+            proxyAddr, // target
+            0, // value
+            upgradeCallData, // data
+            bytes32(0), // predecessor
+            salt // salt
+        );
+
+        // Get min delay
+        uint256 minDelay = TimelockController(payable(timelockAddr)).getMinDelay();
+
+        console.log("\nOperation ID:", vm.toString(operationId));
+        console.log("Min Delay:   ", minDelay, "seconds");
+        console.log("             (", minDelay / 3600, "hours)");
+
+        // Execute schedule
+        vm.startBroadcast();
         TimelockController(payable(timelockAddr)).schedule(
             proxyAddr, // target
             0, // value
@@ -135,43 +298,33 @@ abstract contract L2TokenUpgradeBase is Script {
             salt, // salt
             minDelay // delay
         );
-
-        console.log("\n-> Upgrade scheduled successfully");
-        console.log("-> Execute after:", block.timestamp + minDelay);
-
         vm.stopBroadcast();
 
-        console.log("\n==============================================");
-        console.log("Step 1 Complete!");
+        console.log("\n-> Schedule executed successfully");
+        console.log("-> Execute after:", block.timestamp + minDelay);
         console.log("==============================================");
-        console.log("\nIf using multisig:");
-        console.log("1. Copy the MULTISIG CALLDATA above");
-        console.log("2. Submit to multisig wallet (e.g., Safe)");
-        console.log("3. Target: Timelock address");
-        console.log("4. Value: 0");
-        console.log("5. Data: The calldata shown above");
         console.log("\nNext Step:");
-        console.log("Wait for", minDelay, "seconds");
-        console.log("         (", minDelay / 3600, "hours )");
-        console.log("Then run step2_ExecuteUpgrade with:");
-        console.log("  Proxy:          ", proxyAddr);
-        console.log("  Timelock:       ", timelockAddr);
-        console.log("  New Impl:       ", newImplementation);
-        console.log("  Salt:           ", vm.toString(salt));
+        console.log("Wait", minDelay, "seconds");
+        console.log("(", minDelay / 3600, "hours)");
+        console.log("Then call executeUpgrade() with:");
+        console.log("  - Proxy:    ", proxyAddr);
+        console.log("  - Timelock: ", timelockAddr);
+        console.log("  - New Impl: ", newImplementation);
+        console.log("  - Salt:     ", vm.toString(salt));
         console.log("==============================================");
 
         return operationId;
     }
 
     /**
-     * @notice Step 2: Execute the scheduled upgrade
+     * @notice 4. Execute upgrade operation (requires EXECUTOR_ROLE)
      * @param proxyAddr Token Proxy address
      * @param timelockAddr Timelock address
      * @param newImplementation New implementation address
-     * @param salt Salt used in schedule (must match step1)
-     * @dev Must be called after timelock delay has passed
+     * @param salt Salt for operation (must match executeSchedule)
+     * @dev Call with --broadcast and --private-key after timelock delay
      */
-    function step2_ExecuteUpgrade(
+    function executeUpgrade(
         address proxyAddr,
         address timelockAddr,
         address newImplementation,
@@ -180,11 +333,12 @@ abstract contract L2TokenUpgradeBase is Script {
         external
     {
         console.log("==============================================");
-        console.log("[Upgrade Step 2] Execute");
+        console.log("Execute Upgrade");
         console.log("Token:              ", getTokenSymbol());
         console.log("Proxy:              ", proxyAddr);
         console.log("Timelock:           ", timelockAddr);
         console.log("New Implementation: ", newImplementation);
+        console.log("Salt:               ", vm.toString(salt));
         console.log("==============================================");
 
         // Prepare upgrade call data
@@ -201,7 +355,7 @@ abstract contract L2TokenUpgradeBase is Script {
 
         console.log("\nOperation ID:", vm.toString(operationId));
 
-        // Check if ready
+        // Check status
         TimelockController timelock = TimelockController(payable(timelockAddr));
         bool isPending = timelock.isOperationPending(operationId);
         bool isReady = timelock.isOperationReady(operationId);
@@ -214,28 +368,8 @@ abstract contract L2TokenUpgradeBase is Script {
         require(isReady, "Operation is not ready yet");
         require(!isDone, "Operation already executed");
 
-        // Prepare execute calldata for multisig
-        bytes memory executeCallData = abi.encodeWithSignature(
-            "execute(address,uint256,bytes,bytes32,bytes32)",
-            proxyAddr, // target
-            0, // value
-            upgradeCallData, // data
-            bytes32(0), // predecessor
-            salt // salt
-        );
-
-        console.log("\n==============================================");
-        console.log("MULTISIG CALLDATA FOR EXECUTION:");
-        console.log("==============================================");
-        console.log("Target (Timelock):", timelockAddr);
-        console.log("Value:            ", "0");
-        console.log("Calldata:");
-        console.logBytes(executeCallData);
-        console.log("==============================================");
-
+        // Execute upgrade
         vm.startBroadcast();
-
-        // Execute the upgrade
         timelock.execute(
             proxyAddr, // target
             0, // value
@@ -243,33 +377,32 @@ abstract contract L2TokenUpgradeBase is Script {
             bytes32(0), // predecessor
             salt // salt
         );
+        vm.stopBroadcast();
 
         console.log("\n-> Upgrade executed successfully");
-
-        vm.stopBroadcast();
 
         // Verify upgrade
         L2UpgradeableERC20 proxy = L2UpgradeableERC20(proxyAddr);
         console.log("\n==============================================");
-        console.log("Verifying upgrade...");
+        console.log("Verification");
+        console.log("==============================================");
         console.log("Proxy name:   ", proxy.name());
         console.log("Proxy symbol: ", proxy.symbol());
         console.log("Proxy bridge: ", proxy.bridge());
-
-        console.log("\n==============================================");
-        console.log("Step 2 Complete!");
-        console.log("Upgrade successful!");
         console.log("==============================================");
-        console.log("\nIf using multisig:");
-        console.log("The MULTISIG CALLDATA shown above can be used");
-        console.log("to execute this upgrade via multisig wallet.");
+        console.log("\nUpgrade Complete!");
         console.log("==============================================");
     }
 
+    // =============================================================
+    //                      HELPER FUNCTIONS
+    // =============================================================
+
     /**
-     * @notice Helper: Check if upgrade is ready to execute
+     * @notice Check upgrade operation status
      * @param timelockAddr Timelock address
-     * @param operationId Operation ID from step1
+     * @param operationId Operation ID
+     * @dev View function to check if upgrade is ready
      */
     function checkUpgradeStatus(address timelockAddr, bytes32 operationId) external view {
         TimelockController timelock = TimelockController(payable(timelockAddr));
@@ -295,7 +428,7 @@ abstract contract L2TokenUpgradeBase is Script {
         if (isPending && !isReady) {
             uint256 remainingTime = timestamp - block.timestamp;
             console.log("\nWait for:    ", remainingTime, "seconds");
-            console.log("             (", remainingTime / 3600, "hours )");
+            console.log("             (", remainingTime / 3600, "hours)");
         } else if (isReady) {
             console.log("\nStatus: READY TO EXECUTE");
         } else if (isDone) {

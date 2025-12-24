@@ -45,8 +45,9 @@ import { TimelockController } from "@openzeppelin/contracts/governance/TimelockC
  *
  * Provided Tests:
  * - test_Initialization: Validates initial setup and roles
- * - test_MintBurn_BridgeOnly: Tests mint/burn permissions
+ * - test_MintBurn_BridgeOnly: Tests mint/burn permissions with onlyBridge modifier
  * - test_PauseLogic: Tests pause/unpause functionality
+ * - test_PauseUnpause_RoleSeparation: Tests PAUSER_ROLE and UNPAUSER_ROLE separation
  * - test_BlocklistLogic: Tests blocklist add/remove
  * - test_TimelockUpgradeFlow: Tests complete upgrade flow with timelock
  */
@@ -58,15 +59,16 @@ abstract contract L2TokenTestBase is Test {
     address public deployer = makeAddr("deployer");
     address public bridge = makeAddr("bridge");
     address public remoteToken = makeAddr("remoteToken");
-    address public multisig = makeAddr("multisig");
+    address public multisigSec = makeAddr("multisigSec"); // Security Team
+    address public multisigEng = makeAddr("multisigEng"); // Engineering Team
     address public user1 = makeAddr("user1");
     address public user2 = makeAddr("user2");
 
     // Roles
     bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
-    bytes32 public constant BRIDGE_ROLE = keccak256("BRIDGE_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    bytes32 public constant UNPAUSER_ROLE = keccak256("UNPAUSER_ROLE");
     bytes32 public constant BLOCKLIST_MANAGER_ROLE = keccak256("BLOCKLIST_MANAGER_ROLE");
 
     // =============================================================
@@ -120,7 +122,7 @@ abstract contract L2TokenTestBase is Test {
     //                        STANDARD TESTS
     // =============================================================
 
-    function test_Initialization() public view {
+    function test_Initialization() public {
         (string memory expectedName, string memory expectedSymbol, uint8 expectedDecimals) = getTokenMetadata();
 
         assertEq(token.name(), expectedName);
@@ -132,7 +134,12 @@ abstract contract L2TokenTestBase is Test {
         // Check roles
         assertTrue(token.hasRole(DEFAULT_ADMIN_ROLE, deployer));
         assertTrue(token.hasRole(UPGRADER_ROLE, deployer));
-        assertTrue(token.hasRole(BRIDGE_ROLE, bridge));
+        assertTrue(token.hasRole(PAUSER_ROLE, deployer));
+        assertTrue(token.hasRole(UNPAUSER_ROLE, deployer));
+        assertTrue(token.hasRole(BLOCKLIST_MANAGER_ROLE, deployer));
+
+        // Check bridge address
+        assertEq(token.bridge(), bridge);
     }
 
     function test_MintBurn_BridgeOnly() public {
@@ -146,23 +153,30 @@ abstract contract L2TokenTestBase is Test {
         token.burn(user1, 500);
         assertEq(token.balanceOf(user1), 500);
 
-        // Others cannot mint
+        // Others cannot mint (not bridge)
         vm.prank(user1);
-        vm.expectRevert();
+        vm.expectRevert("L2Token: caller not bridge");
         token.mint(user1, 1000);
+
+        // Others cannot burn (not bridge)
+        vm.prank(user1);
+        vm.expectRevert("L2Token: caller not bridge");
+        token.burn(user1, 100);
     }
 
     function test_PauseLogic() public {
-        // Setup Pauser
-        vm.prank(deployer);
-        token.grantRole(PAUSER_ROLE, multisig);
+        // Setup Pauser and Unpauser
+        vm.startPrank(deployer);
+        token.grantRole(PAUSER_ROLE, multisigEng);
+        token.grantRole(UNPAUSER_ROLE, multisigSec);
+        vm.stopPrank();
 
         // Mint some tokens before pause
         vm.prank(bridge);
         token.mint(user1, 1000);
 
         // Pause
-        vm.prank(multisig);
+        vm.prank(multisigEng);
         token.pause();
         assertTrue(token.paused());
 
@@ -177,7 +191,7 @@ abstract contract L2TokenTestBase is Test {
         token.mint(user1, 100);
 
         // Unpause
-        vm.prank(multisig);
+        vm.prank(multisigSec);
         token.unpause();
 
         // Transfer should work now
@@ -191,16 +205,57 @@ abstract contract L2TokenTestBase is Test {
         assertEq(token.balanceOf(user1), 1000); // 1000 start - 100 sent + 100 mint = 1000
     }
 
+    function test_PauseUnpause_RoleSeparation() public {
+        // Create separate accounts for pause and unpause
+        address pauser = makeAddr("pauser");
+        address unpauser = makeAddr("unpauser");
+
+        // Grant separate roles
+        vm.startPrank(deployer);
+        token.grantRole(PAUSER_ROLE, pauser);
+        token.grantRole(UNPAUSER_ROLE, unpauser);
+        vm.stopPrank();
+
+        // Mint some tokens
+        vm.prank(bridge);
+        token.mint(user1, 1000);
+
+        // Pauser can pause
+        vm.prank(pauser);
+        token.pause();
+        assertTrue(token.paused());
+
+        // Pauser CANNOT unpause (missing UNPAUSER_ROLE)
+        vm.prank(pauser);
+        vm.expectRevert();
+        token.unpause();
+
+        // Unpauser CAN unpause
+        vm.prank(unpauser);
+        token.unpause();
+        assertFalse(token.paused());
+
+        // Unpauser CANNOT pause again (missing PAUSER_ROLE)
+        vm.prank(unpauser);
+        vm.expectRevert();
+        token.pause();
+
+        // Verify functionality after unpause
+        vm.prank(user1);
+        token.transfer(user2, 100);
+        assertEq(token.balanceOf(user2), 100);
+    }
+
     function test_BlocklistLogic() public {
         // Setup Blocklist Manager
         vm.prank(deployer);
-        token.grantRole(BLOCKLIST_MANAGER_ROLE, multisig);
+        token.grantRole(BLOCKLIST_MANAGER_ROLE, multisigEng);
 
         vm.prank(bridge);
         token.mint(user1, 1000);
 
         // Block User1
-        vm.prank(multisig);
+        vm.prank(multisigEng);
         token.addToBlockedList(user1);
         assertTrue(token.isBlocked(user1));
 
@@ -218,7 +273,7 @@ abstract contract L2TokenTestBase is Test {
         token.transfer(user1, 100);
 
         // Unblock
-        vm.prank(multisig);
+        vm.prank(multisigEng);
         token.removeFromBlockedList(user1);
 
         // Transfer works
@@ -229,9 +284,9 @@ abstract contract L2TokenTestBase is Test {
     function test_TimelockUpgradeFlow() public {
         // 1. Deploy Timelock
         address[] memory proposers = new address[](1);
-        proposers[0] = multisig;
+        proposers[0] = multisigSec;
         address[] memory executors = new address[](1);
-        executors[0] = multisig;
+        executors[0] = multisigSec;
 
         vm.prank(deployer);
         TimelockController timelock = new TimelockController(24 hours, proposers, executors, address(0)); // min delay
@@ -257,8 +312,8 @@ abstract contract L2TokenTestBase is Test {
         vm.expectRevert();
         token.upgradeToAndCall(newImpl, "");
 
-        // 5. Schedule via Timelock (Proposer: multisig)
-        vm.prank(multisig);
+        // 5. Schedule via Timelock (Proposer: Security multisig)
+        vm.prank(multisigSec);
         timelock.schedule(
             address(token), // target
             0, // value
@@ -269,7 +324,7 @@ abstract contract L2TokenTestBase is Test {
         );
 
         // 6. Try Execute too early (should fail)
-        vm.prank(multisig);
+        vm.prank(multisigSec);
         // TimelockController: operation is not ready
         vm.expectRevert();
         timelock.execute(address(token), 0, upgradeCallData, bytes32(0), bytes32("salt"));
@@ -277,8 +332,8 @@ abstract contract L2TokenTestBase is Test {
         // 7. Wait for timelock delay
         vm.warp(block.timestamp + 24 hours + 1);
 
-        // 8. Execute (Executor: multisig)
-        vm.prank(multisig);
+        // 8. Execute (Executor: Security multisig)
+        vm.prank(multisigSec);
         timelock.execute(address(token), 0, upgradeCallData, bytes32(0), bytes32("salt"));
 
         // 9. Verify upgrade succeeded

@@ -31,8 +31,8 @@ abstract contract L2UpgradeableERC20 is
     // =============================================================
 
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
-    bytes32 public constant BRIDGE_ROLE = keccak256("BRIDGE_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    bytes32 public constant UNPAUSER_ROLE = keccak256("UNPAUSER_ROLE");
     bytes32 public constant BLOCKLIST_MANAGER_ROLE = keccak256("BLOCKLIST_MANAGER_ROLE");
 
     // =============================================================
@@ -56,6 +56,11 @@ abstract contract L2UpgradeableERC20 is
     // =============================================================
     //                           MODIFIERS
     // =============================================================
+
+    modifier onlyBridge() {
+        require(msg.sender == bridge, "L2Token: caller not bridge");
+        _;
+    }
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -96,8 +101,8 @@ abstract contract L2UpgradeableERC20 is
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(UPGRADER_ROLE, _admin);
         _grantRole(PAUSER_ROLE, _admin);
+        _grantRole(UNPAUSER_ROLE, _admin);
         _grantRole(BLOCKLIST_MANAGER_ROLE, _admin);
-        _grantRole(BRIDGE_ROLE, _bridge);
     }
 
     // =============================================================
@@ -110,7 +115,7 @@ abstract contract L2UpgradeableERC20 is
     )
         external
         override(ILegacyMintableERC20, IOptimismMintableERC20)
-        onlyRole(BRIDGE_ROLE)
+        onlyBridge
     {
         _mint(_to, _amount);
         emit Mint(_to, _amount);
@@ -122,7 +127,7 @@ abstract contract L2UpgradeableERC20 is
     )
         external
         override(ILegacyMintableERC20, IOptimismMintableERC20)
-        onlyRole(BRIDGE_ROLE)
+        onlyBridge
     {
         _burn(_from, _amount);
         emit Burn(_from, _amount);
@@ -160,7 +165,7 @@ abstract contract L2UpgradeableERC20 is
         _pause();
     }
 
-    function unpause() external onlyRole(PAUSER_ROLE) {
+    function unpause() external onlyRole(UNPAUSER_ROLE) {
         _unpause();
     }
 
@@ -189,4 +194,6 @@ abstract contract L2UpgradeableERC20 is
     // =============================================================
 
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(UPGRADER_ROLE) { }
+
+    uint256[50] private __gap;
 }
