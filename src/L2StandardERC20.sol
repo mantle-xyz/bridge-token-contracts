@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import { ERC20 } from "openzeppelin-contracts/token/ERC20/ERC20.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./IL2StandardERC20.sol";
 
 contract L2StandardERC20 is IL2StandardERC20, ERC20 {
@@ -21,7 +21,9 @@ contract L2StandardERC20 is IL2StandardERC20, ERC20 {
         string memory _name,
         string memory _symbol,
         uint8 _decimal
-    ) ERC20(_name, _symbol) {
+    )
+        ERC20(_name, _symbol)
+    {
         l1Token = _l1Token;
         l2Bridge = _l2Bridge;
         decimal = _decimal;
@@ -35,9 +37,8 @@ contract L2StandardERC20 is IL2StandardERC20, ERC20 {
     // slither-disable-next-line external-function
     function supportsInterface(bytes4 _interfaceId) public pure returns (bool) {
         bytes4 firstSupportedInterface = bytes4(keccak256("supportsInterface(bytes4)")); // ERC165
-        bytes4 secondSupportedInterface = IL2StandardERC20.l1Token.selector ^
-            IL2StandardERC20.mint.selector ^
-            IL2StandardERC20.burn.selector;
+        bytes4 secondSupportedInterface =
+            IL2StandardERC20.l1Token.selector ^ IL2StandardERC20.mint.selector ^ IL2StandardERC20.burn.selector;
         return _interfaceId == firstSupportedInterface || _interfaceId == secondSupportedInterface;
     }
 
@@ -59,5 +60,4 @@ contract L2StandardERC20 is IL2StandardERC20, ERC20 {
     function decimals() public view virtual override returns (uint8) {
         return decimal;
     }
-
 }
