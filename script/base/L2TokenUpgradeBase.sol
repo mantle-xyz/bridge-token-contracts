@@ -142,11 +142,7 @@ abstract contract L2TokenUpgradeBase is Script {
      * @return executeCallData Calldata for executing upgrade
      * @dev Call WITHOUT --broadcast and --private-key (view function, no permission needed)
      */
-    function generateCalldata(
-        address proxyAddr,
-        address timelockAddr,
-        address newImplementation
-    )
+    function generateCalldata(address proxyAddr, address timelockAddr, address newImplementation)
         external
         view
         returns (bytes32 salt, bytes memory scheduleCallData, bytes memory executeCallData)
@@ -164,13 +160,14 @@ abstract contract L2TokenUpgradeBase is Script {
 
         // Calculate operation ID and salt
         salt = keccak256(abi.encodePacked(getTokenSymbol(), "-Upgrade-", block.timestamp));
-        bytes32 operationId = TimelockController(payable(timelockAddr)).hashOperation(
-            proxyAddr, // target
-            0, // value
-            upgradeCallData, // data
-            bytes32(0), // predecessor
-            salt // salt
-        );
+        bytes32 operationId = TimelockController(payable(timelockAddr))
+            .hashOperation(
+                proxyAddr, // target
+                0, // value
+                upgradeCallData, // data
+                bytes32(0), // predecessor
+                salt // salt
+            );
 
         console.log("Operation ID:", vm.toString(operationId));
         console.log("Salt:        ", vm.toString(salt));
@@ -251,12 +248,7 @@ abstract contract L2TokenUpgradeBase is Script {
      * @return operationId The operation ID
      * @dev Call with --broadcast and --private-key
      */
-    function executeSchedule(
-        address proxyAddr,
-        address timelockAddr,
-        address newImplementation,
-        bytes32 salt
-    )
+    function executeSchedule(address proxyAddr, address timelockAddr, address newImplementation, bytes32 salt)
         external
         returns (bytes32 operationId)
     {
@@ -273,13 +265,14 @@ abstract contract L2TokenUpgradeBase is Script {
         bytes memory upgradeCallData = abi.encodeWithSignature("upgradeToAndCall(address,bytes)", newImplementation, "");
 
         // Calculate operation ID
-        operationId = TimelockController(payable(timelockAddr)).hashOperation(
-            proxyAddr, // target
-            0, // value
-            upgradeCallData, // data
-            bytes32(0), // predecessor
-            salt // salt
-        );
+        operationId = TimelockController(payable(timelockAddr))
+            .hashOperation(
+                proxyAddr, // target
+                0, // value
+                upgradeCallData, // data
+                bytes32(0), // predecessor
+                salt // salt
+            );
 
         // Get min delay
         uint256 minDelay = TimelockController(payable(timelockAddr)).getMinDelay();
@@ -290,14 +283,15 @@ abstract contract L2TokenUpgradeBase is Script {
 
         // Execute schedule
         vm.startBroadcast();
-        TimelockController(payable(timelockAddr)).schedule(
-            proxyAddr, // target
-            0, // value
-            upgradeCallData, // data
-            bytes32(0), // predecessor
-            salt, // salt
-            minDelay // delay
-        );
+        TimelockController(payable(timelockAddr))
+            .schedule(
+                proxyAddr, // target
+                0, // value
+                upgradeCallData, // data
+                bytes32(0), // predecessor
+                salt, // salt
+                minDelay // delay
+            );
         vm.stopBroadcast();
 
         console.log("\n-> Schedule executed successfully");
@@ -324,14 +318,7 @@ abstract contract L2TokenUpgradeBase is Script {
      * @param salt Salt for operation (must match executeSchedule)
      * @dev Call with --broadcast and --private-key after timelock delay
      */
-    function executeUpgrade(
-        address proxyAddr,
-        address timelockAddr,
-        address newImplementation,
-        bytes32 salt
-    )
-        external
-    {
+    function executeUpgrade(address proxyAddr, address timelockAddr, address newImplementation, bytes32 salt) external {
         console.log("==============================================");
         console.log("Execute Upgrade");
         console.log("Token:              ", getTokenSymbol());
@@ -345,13 +332,14 @@ abstract contract L2TokenUpgradeBase is Script {
         bytes memory upgradeCallData = abi.encodeWithSignature("upgradeToAndCall(address,bytes)", newImplementation, "");
 
         // Calculate operation ID
-        bytes32 operationId = TimelockController(payable(timelockAddr)).hashOperation(
-            proxyAddr, // target
-            0, // value
-            upgradeCallData, // data
-            bytes32(0), // predecessor
-            salt // salt
-        );
+        bytes32 operationId = TimelockController(payable(timelockAddr))
+            .hashOperation(
+                proxyAddr, // target
+                0, // value
+                upgradeCallData, // data
+                bytes32(0), // predecessor
+                salt // salt
+            );
 
         console.log("\nOperation ID:", vm.toString(operationId));
 

@@ -128,12 +128,7 @@ abstract contract L2TokenDeployBase is Script {
      * @param multisigEng Engineering Multisig wallet (PAUSER_ROLE + BLOCKLIST_MANAGER_ROLE)
      * @param timelockAddr Timelock address
      */
-    function step2_TransferAdmin(
-        address proxyAddr,
-        address multisigSec,
-        address multisigEng,
-        address timelockAddr
-    )
+    function step2_TransferAdmin(address proxyAddr, address multisigSec, address multisigEng, address timelockAddr)
         external
     {
         address deployer = vm.envAddress("DEPLOYER");
